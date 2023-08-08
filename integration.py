@@ -1,4 +1,5 @@
 import requests
+import json
 import time
 
 base_url = "https://api-testing.mozio.com/v2"
@@ -21,41 +22,50 @@ def search_trip(body):
     search_info = response.json()
     return search_info
 
-def poll_search(search_id):
+def poll_search(search_id, callback = None):
     """
         This function will keep looking the search_trip until it is completed. 
     
     Args:
         search_id: Id of the search that was created
+        callback (callable): Callback function to provide progress information.
 
     Returns:
-        search_status (dict): dictionary with the information of the creation of the search.
+        search_status (dict) or None: dictionary with the information of the creation of the search or None if max retries reached.
     """
-    timeout_secs = 160
-    in_progress = 1
-    start_time = time.time()
-    while in_progress == 1:
-
+    max_retries = 100
+    poll_interval = 2
+    for retry in range(max_retries):
         url = f"{base_url}/search/{search_id}/poll/"
-        response = requests.get(url, headers=headers)
-        search_status = response.json()
+        try:
+            response = requests.get(url, timeout=poll_interval)
+            search_status = response.json()
 
-        if search_status.get("status") == "completed":
-            return search_status
-        
-        if search_status.get("status") == "pending":
-            if search_status("status") == "failed":
-                raise RuntimeError(f"Creation of search id {search_id} failed")
-            else:
-                in_progress = 0
-        
-        current_time = time.time()
-        elapsed_time = start_time - current_time
-        
-        if elapsed_time > timeout_secs:
-            raise TimeoutError("Search id failed for timeout")
+            status = search_status.get("status")
+            if status == "completed":
+                return search_status
+            elif status == "failed":
+                error_message = search_status.get("error_message")
+                print(f"Search creation failed with message: {error_message}")
+                return None
 
-    return search_status
+            if callback:
+                callback(f"Polling in progress - Attempt: {retry+1}, Status: {status}")
+        except requests.Timeout:
+            if callback:
+                callback("Timeout occurred. Retrying...")
+        except requests.RequestException as e:
+            if callback:
+                callback(f"An error occurred: {e}")
+        except json.JSONDecodeError:
+            if callback:
+                callback("Error decoding JSON response.")
+        
+        time.sleep(poll_interval)
+
+    if callback:
+        callback("Max retries reached. Reservation status not completed.")
+    return None
 
 
 def create_reservation(body):
@@ -126,18 +136,24 @@ def main():
             "branch": "version_test"
         })
     
-    confirmation_search = poll_search(searched_trip["search_id"])
+    search_status = poll_search(searched_trip["search_id"])
+
+    if search_status:
+        print("Reservation confirmed:", search_status)
+    else:
+        pass
 
     create_reservation(params = {
-        "search_id": confirmation_search["search_id"],
+        "search_id": search_status["search_id"],
         "email": "happytraveler@mozio.com",
         "country_code_name": "US",
         "phone_number": "8776665544",
         "first_name": "Happy",
         "last_name": "Traveler",
-        "airline": "AA",
-        "flight_number": "123",
-        "customer_special_instructions": "My doorbell is broken, please yell"
+        "currency": "USD",
+        "provider": {
+            "name": "Dummy External Provider"
+        }
     })
 
     confirmation_search = poll_reservation(searched_trip["search_id"])
