@@ -3,10 +3,10 @@ import time
 
 base_url = "https://api-testing.mozio.com/v2"
 headers = {
-    "API-KEY": "ADD YOUR "
+    "API-KEY": "USE YOUR TOKEN HERE"
 }
 
-def search_trip(headers, params):
+def search_trip(body):
     """
         Search trips giving a specific information: start, end, locations. 
     
@@ -16,12 +16,12 @@ def search_trip(headers, params):
     Returns:
         dict: Information with the rest of the information of the trip.
     """
-    url = f"{base_url}/search"
-    response = requests.post(url, headers, params=params)
+    url = f"{base_url}/search/"
+    response = requests.post(url, headers=headers, json=body)
     search_info = response.json()
     return search_info
 
-def poll_search(search_id, headers):
+def poll_search(search_id):
     """
         This function will keep looking the search_trip until it is completed. 
     
@@ -31,15 +31,18 @@ def poll_search(search_id, headers):
     Returns:
         search_status (dict): dictionary with the information of the creation of the search.
     """
-    timeout_secs = 200
+    timeout_secs = 160
     in_progress = 1
     start_time = time.time()
     while in_progress == 1:
 
-        url = f"{base_url}/{search_id}/poll"
-        response = requests.get(url, headers)
+        url = f"{base_url}/search/{search_id}/poll/"
+        response = requests.get(url, headers=headers)
         search_status = response.json()
 
+        if search_status.get("status") == "completed":
+            return search_status
+        
         if search_status.get("status") == "pending":
             if search_status("status") == "failed":
                 raise RuntimeError(f"Creation of search id {search_id} failed")
@@ -55,7 +58,7 @@ def poll_search(search_id, headers):
     return search_status
 
 
-def create_reservation(headers, params):
+def create_reservation(body):
     """Create a reservation with the information retrieved from the search. 
 
     Args:
@@ -65,12 +68,12 @@ def create_reservation(headers, params):
         reservation_info (dict): a dictionary with the information of the reservation.
     """
 
-    url = f"{base_url}/reservations"
-    response = requests.get(url, headers, params=params)
+    url = f"{base_url}/reservations/"
+    response = requests.get(url, headers, json=body)
     reservation_info = response.json()
     return reservation_info
 
-def poll_reservation(search_id, headers):
+def poll_reservation(search_id):
     """
         This function will keep looking the creation of the reservation until it is completed. 
     
@@ -80,30 +83,21 @@ def poll_reservation(search_id, headers):
     Returns:
         reservation_status (dict): dictionary with the information of the reservation
     """
-    timeout_secs = 200
-    in_progress = 1
+    timeout = 120
     start_time = time.time()
-    while in_progress == 1:
+    while time.time() - start_time < timeout:
 
-        url = f"{base_url}/reservation/{search_id}/poll"
+        url = f"{base_url}/reservation/{search_id}/poll/"
         response = requests.get(url, headers)
         reservation_status = response.json()
 
         if reservation_status.get("status") == "pending":
             if reservation_status("status") == "failed":
                 raise RuntimeError(f"Reservation with search id {search_id} failed")
-            else:
-                in_progress = 0
-        
-        current_time = time.time()
-        elapsed_time = start_time - current_time
-        
-        if elapsed_time > timeout_secs:
-            raise TimeoutError("Reservation failed for timeout")
 
     return reservation_status
 
-def cancel_reservation(reservation_id, headers):
+def cancel_reservation(reservation_id):
     """This function perform the cancelation of a reservation by deleting it.
     
     Args:
@@ -113,14 +107,14 @@ def cancel_reservation(reservation_id, headers):
         bool: True when the deletion was completed. 
         """
     
-    url = f"{base_url}/reservations/{reservation_id}"
+    url = f"{base_url}/reservations/{reservation_id}/"
     response = requests.delete(url, headers)
     return response.json()
 
 
 def main():
 
-    searched_trip = search_trip({
+    searched_trip = search_trip(
         {
             "start_address": "44 Tehama Street, San Francisco, CA, USA",
             "end_address": "SFO",
@@ -128,13 +122,12 @@ def main():
             "pickup_datetime": "2023-12-01 15:30",
             "num_passengers": 2,
             "currency": "USD",
-            "campaign": "Deisy Jaqueline Giraldo Rivera"
-            }
+            "campaign": "Deisy Jaqueline Giraldo Rivera",
+            "branch": "version_test"
         })
     
     confirmation_search = poll_search(searched_trip["search_id"])
 
-    # Create reservation with the search_id
     create_reservation(params = {
         "search_id": confirmation_search["search_id"],
         "email": "happytraveler@mozio.com",
