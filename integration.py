@@ -137,7 +137,6 @@ def main():
     # Create reservation with the search_id
     create_reservation(params = {
         "search_id": confirmation_search["search_id"],
-        "result_id": "763475651c06f5ac31ea587084dc0629",
         "email": "happytraveler@mozio.com",
         "country_code_name": "US",
         "phone_number": "8776665544",
@@ -150,7 +149,7 @@ def main():
 
     confirmation_search = poll_reservation(searched_trip["search_id"])
 
-    delete_reservation = cancel_reservation(confirmation_search["reservation"]["id"])
+    cancel_reservation(confirmation_search["reservation"]["id"])
 
 if __name__ == "__main__":
     main()
