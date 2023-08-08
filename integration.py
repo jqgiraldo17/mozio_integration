@@ -39,26 +39,28 @@ def poll_search(search_id, callback = None):
         url = f"{base_url}/search/{search_id}/poll/"
         
         try:
-            response = requests.get(url, timeout=poll_interval)
+            response = requests.get(url, headers=headers, timeout=poll_interval)
             search_status = response.json()
-
             status = search_status.get("status")
+            result_id = ""
             more_coming = search_status.get("more_coming")
+            if search_status["results"] and search_status["results"][0]["result_id"]:
+                result_id = search_status["results"][0]["result_id"]
 
             if more_coming == True:
-                response = requests.get(url, timeout=poll_interval)
+                response = requests.get(url, headers=headers, timeout=poll_interval)
                 status = search_status.get("status")
                 if status == "confirmed":
-                    print("Reservation is confirmed.")
+                    print("Search creation is confirmed.")
                 elif status == "pending":
-                    print("Reservation is still pending.")
+                    print("Search creation is still pending.")
                 else:
-                    print("Unknown reservation status.")
+                    print("search creation failed.")
                 
             else:
                 print("Polling complete.")
                 print("Status: ", status)
-                break
+                return result_id
         except requests.Timeout:
             if callback:
                 callback("Timeout occurred. Retrying...")
@@ -81,11 +83,11 @@ def create_reservation(body):
     """
 
     url = f"{base_url}/reservations/"
-    response = requests.get(url, headers, json=body)
+    response = requests.get(url, headers=headers, json=body)
     reservation_info = response.json()
     return reservation_info
 
-def poll_reservation(search_id):
+def poll_reservation(search_id, callback = None):
     """
         This function will keep looking the creation of the reservation until it is completed. 
     
@@ -95,19 +97,44 @@ def poll_reservation(search_id):
     Returns:
         reservation_status (dict): dictionary with the information of the reservation
     """
-    timeout = 120
-    start_time = time.time()
-    while time.time() - start_time < timeout:
+    max_retries = 10
+    poll_interval = 2
 
+    for retry in range(max_retries):
         url = f"{base_url}/reservation/{search_id}/poll/"
-        response = requests.get(url, headers)
-        reservation_status = response.json()
+        try:
+            response = requests.get(url, headers=headers, timeout=poll_interval)
+            reservation_status = response.json()
 
-        if reservation_status.get("status") == "pending":
-            if reservation_status("status") == "failed":
-                raise RuntimeError(f"Reservation with search id {search_id} failed")
+            status = reservation_status.get("status")
+            if status == "completed":
+                return reservation_status
+            elif status == "failed":
+                error_message = reservation_status.get("error_message")
+                print(f"Reservation failed with message: {error_message}")
+                return None
 
-    return reservation_status
+            if callback:
+                callback(f"Polling in progress - Attempt: {retry+1}, Status: {status}")
+        except requests.Timeout:
+            if callback:
+                callback("Timeout occurred. Retrying...")
+        except requests.RequestException as e:
+            if callback:
+                callback(f"An error occurred: {e}")
+        except json.JSONDecodeError:
+            if callback:
+                callback("Error decoding JSON response.")
+        
+        time.sleep(poll_interval)
+
+    if callback:
+        callback("Max retries reached. Reservation status not completed.")
+    return None
+
+def progress_callback(status_info):
+    """Callback function to display polling progress information."""
+    print(status_info)
 
 def cancel_reservation(reservation_id):
     """This function perform the cancelation of a reservation by deleting it.
@@ -120,7 +147,7 @@ def cancel_reservation(reservation_id):
         """
     
     url = f"{base_url}/reservations/{reservation_id}/"
-    response = requests.delete(url, headers)
+    response = requests.delete(url, headers=headers)
     return response.json()
 
 
@@ -138,10 +165,12 @@ def main():
             "branch": "version_test"
         })
     print("search id: ", {searched_trip["search_id"]})
-    search_status = poll_search(searched_trip["search_id"])
+    result_id = poll_search(searched_trip["search_id"])
+    print("Result_id: ", result_id)
 
-    create_reservation(body = {
+    reservation_info = create_reservation(body = {
         "search_id": searched_trip["search_id"],
+        "result_id": result_id,
         "email": "happytraveler@mozio.com",
         "country_code_name": "US",
         "phone_number": "8776665544",
@@ -150,10 +179,17 @@ def main():
         "currency": "USD",
         "provider": {
             "name": "Dummy External Provider"
-        }
+        },
+        "airline": "AA",
+        "flight_number": "269",
+        "customer_special_instructions": "Check the alarms"
     })
-
+    print("Reservation info: ", reservation_info)
     confirmation_search = poll_reservation(searched_trip["search_id"])
+    if confirmation_search:
+        print("Reservation confirmed:", confirmation_search)
+    else:
+        pass
 
     cancel_reservation(confirmation_search["reservation"]["id"])
 
