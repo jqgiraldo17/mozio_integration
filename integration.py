@@ -33,39 +33,41 @@ def poll_search(search_id, callback = None):
     Returns:
         search_status (dict) or None: dictionary with the information of the creation of the search or None if max retries reached.
     """
-    max_retries = 100
+    max_retries = 10
     poll_interval = 2
     for retry in range(max_retries):
         url = f"{base_url}/search/{search_id}/poll/"
+        
         try:
             response = requests.get(url, timeout=poll_interval)
             search_status = response.json()
 
             status = search_status.get("status")
-            if status == "completed":
-                return search_status
-            elif status == "failed":
-                error_message = search_status.get("error_message")
-                print(f"Search creation failed with message: {error_message}")
-                return None
+            more_coming = search_status.get("more_coming")
 
-            if callback:
-                callback(f"Polling in progress - Attempt: {retry+1}, Status: {status}")
+            if more_coming == True:
+                response = requests.get(url, timeout=poll_interval)
+                status = search_status.get("status")
+                if status == "confirmed":
+                    print("Reservation is confirmed.")
+                elif status == "pending":
+                    print("Reservation is still pending.")
+                else:
+                    print("Unknown reservation status.")
+                
+            else:
+                print("Polling complete.")
+                print("Status: ", status)
+                break
         except requests.Timeout:
             if callback:
                 callback("Timeout occurred. Retrying...")
         except requests.RequestException as e:
             if callback:
                 callback(f"An error occurred: {e}")
-        except json.JSONDecodeError:
+        except json.JSONDecodeError: 
             if callback:
                 callback("Error decoding JSON response.")
-        
-        time.sleep(poll_interval)
-
-    if callback:
-        callback("Max retries reached. Reservation status not completed.")
-    return None
 
 
 def create_reservation(body):
@@ -135,16 +137,11 @@ def main():
             "campaign": "Deisy Jaqueline Giraldo Rivera",
             "branch": "version_test"
         })
-    
+    print("search id: ", {searched_trip["search_id"]})
     search_status = poll_search(searched_trip["search_id"])
 
-    if search_status:
-        print("Reservation confirmed:", search_status)
-    else:
-        pass
-
-    create_reservation(params = {
-        "search_id": search_status["search_id"],
+    create_reservation(body = {
+        "search_id": searched_trip["search_id"],
         "email": "happytraveler@mozio.com",
         "country_code_name": "US",
         "phone_number": "8776665544",
