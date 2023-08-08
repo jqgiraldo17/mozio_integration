@@ -31,7 +31,7 @@ def poll_search(search_id, callback = None):
         callback (callable): Callback function to provide progress information.
 
     Returns:
-        search_status (dict) or None: dictionary with the information of the creation of the search or None if max retries reached.
+        result_id (str): resuld_id from the search creation.
     """
     max_retries = 10
     poll_interval = 2
