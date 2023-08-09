@@ -83,7 +83,7 @@ def create_reservation(body):
     """
 
     url = f"{base_url}/reservations/"
-    response = requests.get(url, headers=headers, json=body)
+    response = requests.post(url, headers=headers, json=body)
     reservation_info = response.json()
     return reservation_info
 
@@ -185,13 +185,13 @@ def main():
         "customer_special_instructions": "Check the alarms"
     })
     print("Reservation info: ", reservation_info)
-    confirmation_search = poll_reservation(searched_trip["search_id"])
-    if confirmation_search:
-        print("Reservation confirmed:", confirmation_search)
+    confirmation_reservation = poll_reservation(searched_trip["search_id"])
+    if confirmation_reservation:
+        print("Reservation confirmed:", confirmation_reservation)
     else:
         pass
 
-    cancel_reservation(confirmation_search["reservation"]["id"])
+    cancel_reservation(confirmation_reservation["reservation"]["id"])
 
 if __name__ == "__main__":
     main()
