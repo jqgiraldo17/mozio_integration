@@ -4,7 +4,7 @@ import time
 
 base_url = "https://api-testing.mozio.com/v2"
 headers = {
-    "API-KEY": "USE YOUR TOKEN HERE"
+    "API-KEY": "6bd1e15ab9e94bb190074b4209e6b6f9"
 }
 
 def search_trip(body):
@@ -52,14 +52,11 @@ def poll_search(search_id, callback = None):
                 status = search_status.get("status")
                 if status == "confirmed":
                     print("Search creation is confirmed.")
-                elif status == "pending":
-                    print("Search creation is still pending.")
                 else:
-                    print("search creation failed.")
+                    print("search creation in progress.")
                 
             else:
                 print("Polling complete.")
-                print("Status: ", status)
                 return result_id
         except requests.Timeout:
             if callback:
@@ -95,7 +92,7 @@ def poll_reservation(search_id, callback = None):
         reservation_id: Id of the reservation that was created
 
     Returns:
-        reservation_status (dict): dictionary with the information of the reservation
+        reservation_id (str): Id of the reservation
     """
     max_retries = 10
     poll_interval = 2
@@ -105,10 +102,14 @@ def poll_reservation(search_id, callback = None):
         try:
             response = requests.get(url, headers=headers, timeout=poll_interval)
             reservation_status = response.json()
-
             status = reservation_status.get("status")
+            reservation_id = ""
+
+            if reservation_status["reservations"] and reservation_status["reservations"][0]["id"]:
+                reservation_id = reservation_status["reservations"][0]["id"]
+
             if status == "completed":
-                return reservation_status
+                return reservation_id
             elif status == "failed":
                 error_message = reservation_status.get("error_message")
                 print(f"Reservation failed with message: {error_message}")
@@ -181,17 +182,19 @@ def main():
             "name": "Dummy External Provider"
         },
         "airline": "AA",
-        "flight_number": "269",
+        "flight_number": "169",
         "customer_special_instructions": "Check the alarms"
     })
+
     print("Reservation info: ", reservation_info)
-    confirmation_reservation = poll_reservation(searched_trip["search_id"])
-    if confirmation_reservation:
-        print("Reservation confirmed:", confirmation_reservation)
+    reservation_id = poll_reservation(searched_trip["search_id"])
+
+    if reservation_id:
+        print("Reservation confirmed:", reservation_id)
     else:
         pass
 
-    cancel_reservation(confirmation_reservation["reservation"]["id"])
+    cancel_reservation(reservation_id)
 
 if __name__ == "__main__":
     main()
