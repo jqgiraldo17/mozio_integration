@@ -98,7 +98,7 @@ def poll_reservation(search_id, callback = None):
     poll_interval = 2
 
     for retry in range(max_retries):
-        url = f"{base_url}/reservation/{search_id}/poll/"
+        url = f"{base_url}/reservations/{search_id}/poll/"
         try:
             response = requests.get(url, headers=headers, timeout=poll_interval)
             reservation_status = response.json()
@@ -149,7 +149,12 @@ def cancel_reservation(reservation_id):
     
     url = f"{base_url}/reservations/{reservation_id}/"
     response = requests.delete(url, headers=headers)
-    return response.json()
+    deletion_status = response.json()
+
+    if deletion_status.get("cancelled") == 1 : 
+        return True
+    else:
+        "Something went wrong, check the reservation ID"
 
 
 def main():
@@ -165,6 +170,7 @@ def main():
             "campaign": "Deisy Jaqueline Giraldo Rivera",
             "branch": "version_test"
         })
+    
     print("search id: ", {searched_trip["search_id"]})
     result_id = poll_search(searched_trip["search_id"])
     print("Result_id: ", result_id)
@@ -182,13 +188,14 @@ def main():
             "name": "Dummy External Provider"
         },
         "airline": "AA",
-        "flight_number": "169",
+        "flight_number": "129",
         "customer_special_instructions": "Check the alarms"
     })
 
     print("Reservation info: ", reservation_info)
     reservation_id = poll_reservation(searched_trip["search_id"])
-
+    print("Reservation ID:", reservation_id)
+    
     if reservation_id:
         print("Reservation confirmed:", reservation_id)
     else:
