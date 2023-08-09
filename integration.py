@@ -4,7 +4,7 @@ import time
 
 base_url = "https://api-testing.mozio.com/v2"
 headers = {
-    "API-KEY": "6bd1e15ab9e94bb190074b4209e6b6f9"
+    "API-KEY": "USER YOUR KEY HERE"
 }
 
 def search_trip(body):
